@@ -255,7 +255,8 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   /* Select MII or RMII Mode*/
   SYSCFG->PMC &= ~(SYSCFG_PMC_MII_RMII_SEL);
   SYSCFG->PMC |= (uint32_t)heth->Init.MediaInterface;
-  
+  tickstart = HAL_GetTick();
+  while((HAL_GetTick() - tickstart ) < 50);
   /* Ethernet Software reset */
   /* Set the SWR bit: resets all MAC subsystem internal registers and logic */
   /* After reset all the registers holds their respective reset values */
@@ -263,7 +264,7 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   
   /* Get tick */
   tickstart = HAL_GetTick();
-  
+
   /* Wait for software reset */
   while (((heth->Instance)->DMABMR & ETH_DMABMR_SR) != (uint32_t)RESET)
   {

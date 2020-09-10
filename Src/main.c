@@ -99,6 +99,7 @@ int main(void)
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
   BSP_CAN_Init(&hcan1);
+
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
