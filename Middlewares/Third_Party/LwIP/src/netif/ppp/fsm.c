@@ -40,11 +40,11 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "lwip/opt.h"
+#include "netif/ppp/ppp_opts.h"
 #if PPP_SUPPORT /* don't build if not configured for use in lwipopts.h */
 
 /*
- * TODO:
+ * @todo:
  * Randomize fsm id on link/init.
  * Deal with variable outgoing MTU.
  */
@@ -236,7 +236,7 @@ static void terminate_layer(fsm *f, int nextstate) {
  */
 void fsm_close(fsm *f, const char *reason) {
     f->term_reason = reason;
-    f->term_reason_len = (reason == NULL? 0: LWIP_MIN(strlen(reason), 0xFF) );
+    f->term_reason_len = (reason == NULL? 0: (u8_t)LWIP_MIN(strlen(reason), 0xFF) );
     switch( f->state ){
     case PPP_FSM_STARTING:
 	f->state = PPP_FSM_INITIAL;
@@ -797,4 +797,3 @@ void fsm_sdata(fsm *f, u_char code, u_char id, const u_char *data, int datalen) 
 }
 
 #endif /* PPP_SUPPORT */
-

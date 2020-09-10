@@ -1,3 +1,8 @@
+/**
+ * @file
+ * IPv4 API
+ */
+
 /*
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved.
@@ -38,10 +43,10 @@
 
 #include "lwip/def.h"
 #include "lwip/pbuf.h"
-#include "lwip/ip_addr.h"
-#include "lwip/ip6_addr.h"
+#include "lwip/ip4_addr.h"
 #include "lwip/err.h"
 #include "lwip/netif.h"
+#include "lwip/prot/ip4.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,68 +61,12 @@ extern "C" {
 /** Currently, the function ip_output_if_opt() is only used with IGMP */
 #define IP_OPTIONS_SEND   (LWIP_IPV4 && LWIP_IGMP)
 
-#define IP_HLEN 20
-
-
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
-PACK_STRUCT_BEGIN
-struct ip_hdr {
-  /* version / header length */
-  PACK_STRUCT_FLD_8(u8_t _v_hl);
-  /* type of service */
-  PACK_STRUCT_FLD_8(u8_t _tos);
-  /* total length */
-  PACK_STRUCT_FIELD(u16_t _len);
-  /* identification */
-  PACK_STRUCT_FIELD(u16_t _id);
-  /* fragment offset field */
-  PACK_STRUCT_FIELD(u16_t _offset);
-#define IP_RF 0x8000U        /* reserved fragment flag */
-#define IP_DF 0x4000U        /* don't fragment flag */
-#define IP_MF 0x2000U        /* more fragments flag */
-#define IP_OFFMASK 0x1fffU   /* mask for fragmenting bits */
-  /* time to live */
-  PACK_STRUCT_FLD_8(u8_t _ttl);
-  /* protocol*/
-  PACK_STRUCT_FLD_8(u8_t _proto);
-  /* checksum */
-  PACK_STRUCT_FIELD(u16_t _chksum);
-  /* source and destination IP addresses */
-  PACK_STRUCT_FLD_S(ip4_addr_p_t src);
-  PACK_STRUCT_FLD_S(ip4_addr_p_t dest);
-} PACK_STRUCT_STRUCT;
-PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
-
-#define IPH_V(hdr)  ((hdr)->_v_hl >> 4)
-#define IPH_HL(hdr) ((hdr)->_v_hl & 0x0f)
-#define IPH_TOS(hdr) ((hdr)->_tos)
-#define IPH_LEN(hdr) ((hdr)->_len)
-#define IPH_ID(hdr) ((hdr)->_id)
-#define IPH_OFFSET(hdr) ((hdr)->_offset)
-#define IPH_TTL(hdr) ((hdr)->_ttl)
-#define IPH_PROTO(hdr) ((hdr)->_proto)
-#define IPH_CHKSUM(hdr) ((hdr)->_chksum)
-
-#define IPH_VHL_SET(hdr, v, hl) (hdr)->_v_hl = (u8_t)((((v) << 4) | (hl)))
-#define IPH_TOS_SET(hdr, tos) (hdr)->_tos = (tos)
-#define IPH_LEN_SET(hdr, len) (hdr)->_len = (len)
-#define IPH_ID_SET(hdr, id) (hdr)->_id = (id)
-#define IPH_OFFSET_SET(hdr, off) (hdr)->_offset = (off)
-#define IPH_TTL_SET(hdr, ttl) (hdr)->_ttl = (u8_t)(ttl)
-#define IPH_PROTO_SET(hdr, proto) (hdr)->_proto = (u8_t)(proto)
-#define IPH_CHKSUM_SET(hdr, chksum) (hdr)->_chksum = (chksum)
-
 #define ip_init() /* Compatibility define, no init needed. */
 struct netif *ip4_route(const ip4_addr_t *dest);
 #if LWIP_IPV4_SRC_ROUTING
-struct netif *ip4_route_src(const ip4_addr_t *dest, const ip4_addr_t *src);
+struct netif *ip4_route_src(const ip4_addr_t *src, const ip4_addr_t *dest);
 #else /* LWIP_IPV4_SRC_ROUTING */
-#define ip4_route_src(dest, src) ip4_route(dest)
+#define ip4_route_src(src, dest) ip4_route(dest)
 #endif /* LWIP_IPV4_SRC_ROUTING */
 err_t ip4_input(struct pbuf *p, struct netif *inp);
 err_t ip4_output(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
@@ -126,10 +75,10 @@ err_t ip4_output_if(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *des
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
 err_t ip4_output_if_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
-#if LWIP_NETIF_HWADDRHINT
+#if LWIP_NETIF_USE_HINTS
 err_t ip4_output_hinted(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
-       u8_t ttl, u8_t tos, u8_t proto, u8_t *addr_hint);
-#endif /* LWIP_NETIF_HWADDRHINT */
+       u8_t ttl, u8_t tos, u8_t proto, struct netif_hint *netif_hint);
+#endif /* LWIP_NETIF_USE_HINTS */
 #if IP_OPTIONS_SEND
 err_t ip4_output_if_opt(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif, void *ip_options,
@@ -157,6 +106,6 @@ void ip4_debug_print(struct pbuf *p);
 
 #endif /* LWIP_IPV4 */
 
-
 #endif /* LWIP_HDR_IP_H */
+
 

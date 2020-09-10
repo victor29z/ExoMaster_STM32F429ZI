@@ -1,3 +1,8 @@
+/**
+ * @file
+ * netconn API lwIP internal implementations (do not use in application code)
+ */
+
 /*
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved.
@@ -34,33 +39,29 @@
 
 #include "lwip/opt.h"
 
-#if LWIP_NETCONN || LWIP_SOCKET /* don't build if not configured for use in lwipopts.h */
-/* Note: Netconn API is always available when sockets are enabled -
- * sockets are implemented on top of them */
-
-#include <stddef.h> /* for size_t */
-
+#include "lwip/arch.h"
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "lwip/igmp.h"
 #include "lwip/api.h"
+#include "lwip/priv/tcpip_priv.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#if LWIP_NETCONN || LWIP_SOCKET /* don't build if not configured for use in lwipopts.h */
+/* Note: Netconn API is always available when sockets are enabled -
+ * sockets are implemented on top of them */
+
 #if LWIP_MPU_COMPATIBLE
-#define API_MSG_M_DEF(m)      m
-#define API_MSG_M_DEF_C(t, m) t m
-#ifdef LWIP_NETCONN_SEM_PER_THREAD
+#if LWIP_NETCONN_SEM_PER_THREAD
 #define API_MSG_M_DEF_SEM(m)  *m
 #else
 #define API_MSG_M_DEF_SEM(m)  API_MSG_M_DEF(m)
 #endif
 #else /* LWIP_MPU_COMPATIBLE */
-#define API_MSG_M_DEF(m)      *m
-#define API_MSG_M_DEF_C(t, m) const t * m
 #define API_MSG_M_DEF_SEM(m)  API_MSG_M_DEF(m)
 #endif /* LWIP_MPU_COMPATIBLE */
 
@@ -75,7 +76,7 @@ extern "C" {
 /** This struct includes everything that is necessary to execute a function
     for a netconn in another thread context (mainly used to process netconns
     in the tcpip_thread context to be thread safe). */
-struct api_msg_msg {
+struct api_msg {
   /** The netconn which to process - always needed: it includes the semaphore
       which is used to block the application thread until the function finished. */
   struct netconn *conn;
@@ -93,6 +94,7 @@ struct api_msg_msg {
     struct {
       API_MSG_M_DEF_C(ip_addr_t, ipaddr);
       u16_t port;
+      u8_t if_idx;
     } bc;
     /** used for lwip_netconn_do_getaddr */
     struct {
@@ -102,8 +104,16 @@ struct api_msg_msg {
     } ad;
     /** used for lwip_netconn_do_write */
     struct {
-      const void *dataptr;
+      /** current vector to write */
+      const struct netvector *vector;
+      /** number of unwritten vectors */
+      u16_t vector_cnt;
+      /** offset into current vector */
+      size_t vector_off;
+      /** total length across vectors */
       size_t len;
+      /** offset into total length/output of bytes written when err == ERR_OK */
+      size_t offset;
       u8_t apiflags;
 #if LWIP_SO_SNDTIMEO
       u32_t time_started;
@@ -111,7 +121,7 @@ struct api_msg_msg {
     } w;
     /** used for lwip_netconn_do_recv */
     struct {
-      u32_t len;
+      size_t len;
     } r;
 #if LWIP_TCP
     /** used for lwip_netconn_do_close (/shutdown) */
@@ -129,6 +139,7 @@ struct api_msg_msg {
     struct {
       API_MSG_M_DEF_C(ip_addr_t, multiaddr);
       API_MSG_M_DEF_C(ip_addr_t, netif_addr);
+      u8_t if_idx;
       enum netconn_igmp join_or_leave;
     } jl;
 #endif /* LWIP_IGMP || (LWIP_IPV6 && LWIP_IPV6_MLD) */
@@ -149,16 +160,6 @@ struct api_msg_msg {
 #define LWIP_API_MSG_SEM(msg)          (&(msg)->conn->op_completed)
 #endif /* LWIP_NETCONN_SEM_PER_THREAD */
 
-
-/** This struct contains a function to execute in another thread context and
-    a struct api_msg_msg that serves as an argument for this function.
-    This is passed to tcpip_apimsg to execute functions in tcpip_thread context. */
-struct api_msg {
-  /** function to execute in tcpip_thread context */
-  void (* function)(struct api_msg_msg *msg);
-  /** arguments for this function */
-  struct api_msg_msg msg;
-};
 
 #if LWIP_DNS
 /** As lwip_netconn_do_gethostbyname requires more arguments but doesn't require a netconn,
@@ -186,20 +187,29 @@ struct dns_api_msg {
 };
 #endif /* LWIP_DNS */
 
-void lwip_netconn_do_newconn         ( struct api_msg_msg *msg);
-void lwip_netconn_do_delconn         ( struct api_msg_msg *msg);
-void lwip_netconn_do_bind            ( struct api_msg_msg *msg);
-void lwip_netconn_do_connect         ( struct api_msg_msg *msg);
-void lwip_netconn_do_disconnect      ( struct api_msg_msg *msg);
-void lwip_netconn_do_listen          ( struct api_msg_msg *msg);
-void lwip_netconn_do_send            ( struct api_msg_msg *msg);
-void lwip_netconn_do_recv            ( struct api_msg_msg *msg);
-void lwip_netconn_do_write           ( struct api_msg_msg *msg);
-void lwip_netconn_do_getaddr         ( struct api_msg_msg *msg);
-void lwip_netconn_do_close           ( struct api_msg_msg *msg);
-void lwip_netconn_do_shutdown        ( struct api_msg_msg *msg);
+#if LWIP_NETCONN_FULLDUPLEX
+int lwip_netconn_is_deallocated_msg(void *msg);
+#endif
+int lwip_netconn_is_err_msg(void *msg, err_t *err);
+void lwip_netconn_do_newconn         (void *m);
+void lwip_netconn_do_delconn         (void *m);
+void lwip_netconn_do_bind            (void *m);
+void lwip_netconn_do_bind_if         (void *m);
+void lwip_netconn_do_connect         (void *m);
+void lwip_netconn_do_disconnect      (void *m);
+void lwip_netconn_do_listen          (void *m);
+void lwip_netconn_do_send            (void *m);
+void lwip_netconn_do_recv            (void *m);
+#if TCP_LISTEN_BACKLOG
+void lwip_netconn_do_accepted        (void *m);
+#endif /* TCP_LISTEN_BACKLOG */
+void lwip_netconn_do_write           (void *m);
+void lwip_netconn_do_getaddr         (void *m);
+void lwip_netconn_do_close           (void *m);
+void lwip_netconn_do_shutdown        (void *m);
 #if LWIP_IGMP || (LWIP_IPV6 && LWIP_IPV6_MLD)
-void lwip_netconn_do_join_leave_group( struct api_msg_msg *msg);
+void lwip_netconn_do_join_leave_group(void *m);
+void lwip_netconn_do_join_leave_group_netif(void *m);
 #endif /* LWIP_IGMP || (LWIP_IPV6 && LWIP_IPV6_MLD) */
 
 #if LWIP_DNS
@@ -209,11 +219,54 @@ void lwip_netconn_do_gethostbyname(void *arg);
 struct netconn* netconn_alloc(enum netconn_type t, netconn_callback callback);
 void netconn_free(struct netconn *conn);
 
+#endif /* LWIP_NETCONN || LWIP_SOCKET */
+
+#if LWIP_NETIF_API /* don't build if not configured for use in lwipopts.h */
+
+/* netifapi related lwIP internal definitions */
+
+#if LWIP_MPU_COMPATIBLE
+#define NETIFAPI_IPADDR_DEF(type, m)  type m
+#else /* LWIP_MPU_COMPATIBLE */
+#define NETIFAPI_IPADDR_DEF(type, m)  const type * m
+#endif /* LWIP_MPU_COMPATIBLE */
+
+typedef void (*netifapi_void_fn)(struct netif *netif);
+typedef err_t (*netifapi_errt_fn)(struct netif *netif);
+
+struct netifapi_msg {
+  struct tcpip_api_call_data call;
+  struct netif *netif;
+  union {
+    struct {
+#if LWIP_IPV4
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, ipaddr);
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, netmask);
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, gw);
+#endif /* LWIP_IPV4 */
+      void *state;
+      netif_init_fn init;
+      netif_input_fn input;
+    } add;
+    struct {
+      netifapi_void_fn voidfunc;
+      netifapi_errt_fn errtfunc;
+    } common;
+    struct {
+#if LWIP_MPU_COMPATIBLE
+      char name[NETIF_NAMESIZE];
+#else /* LWIP_MPU_COMPATIBLE */
+      char *name;
+#endif /* LWIP_MPU_COMPATIBLE */
+      u8_t index;
+    } ifs;
+  } msg;
+};
+
+#endif /* LWIP_NETIF_API */
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* LWIP_NETCONN || LWIP_SOCKET */
-
 #endif /* LWIP_HDR_API_MSG_H */
-

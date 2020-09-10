@@ -1,3 +1,8 @@
+/**
+ * @file
+ * NETBIOS name service responder
+ */
+
 /*
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -29,11 +34,18 @@
 
 #include "lwip/apps/netbiosns_opts.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void netbiosns_init(void);
 #ifndef NETBIOS_LWIP_NAME
-/* ATTENTION: the hostname must be <= 15 characters! */
 void netbiosns_set_name(const char* hostname);
 #endif
 void netbiosns_stop(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LWIP_HDR_APPS_NETBIOS_H */

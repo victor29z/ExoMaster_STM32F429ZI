@@ -33,16 +33,16 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "lwip/opt.h"
+#include "netif/ppp/ppp_opts.h"
 #if PPP_SUPPORT && MPPE_SUPPORT  /* don't build if not configured for use in lwipopts.h */
 
 #ifndef MPPE_H
 #define MPPE_H
 
-#if LWIP_INCLUDED_POLARSSL_ARC4
-#include "netif/ppp/polarssl/arc4.h"
-#else
-#include "polarssl/arc4.h"
+#include "netif/ppp/pppcrypt.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define MPPE_PAD		4	/* MPPE growth per frame */
@@ -63,7 +63,7 @@
  * This is not nice ... the alternative is a bitfield struct though.
  * And unfortunately, we cannot share the same bits for the option
  * names above since C and H are the same bit.  We could do a u_int32
- * but then we have to do a htonl() all the time and/or we still need
+ * but then we have to do a lwip_htonl() all the time and/or we still need
  * to know which octet is which.
  */
 #define MPPE_C_BIT		0x01	/* MPPC */
@@ -152,7 +152,7 @@ static const u8_t mppe_sha1_pad2[SHA1_PAD_SIZE] = {
  * State for an MPPE (de)compressor.
  */
 typedef struct ppp_mppe_state {
-	arc4_context arc4;
+	lwip_arc4_context arc4;
 	u8_t master_key[MPPE_MAX_KEY_LEN];
 	u8_t session_key[MPPE_MAX_KEY_LEN];
 	u8_t keylen;                /* key length in bytes */
@@ -172,6 +172,10 @@ void mppe_comp_reset(ppp_pcb *pcb, ppp_mppe_state *state);
 err_t mppe_compress(ppp_pcb *pcb, ppp_mppe_state *state, struct pbuf **pb, u16_t protocol);
 void mppe_decomp_reset(ppp_pcb *pcb, ppp_mppe_state *state);
 err_t mppe_decompress(ppp_pcb *pcb, ppp_mppe_state *state, struct pbuf **pb);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MPPE_H */
 #endif /* PPP_SUPPORT && MPPE_SUPPORT */

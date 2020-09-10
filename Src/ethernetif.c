@@ -4,55 +4,31 @@
   * Description        : This file provides code for the configuration
   *                      of the ethernetif.c MiddleWare.
   ******************************************************************************
+  * @attention
   *
-  * Copyright (c) 2016 STMicroelectronics International N.V. 
-  * All rights reserved.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * Redistribution and use in source and binary forms, with or without 
-  * modification, are permitted, provided that the following conditions are met:
-  *
-  * 1. Redistribution of source code must retain the above copyright notice, 
-  *    this list of conditions and the following disclaimer.
-  * 2. Redistributions in binary form must reproduce the above copyright notice,
-  *    this list of conditions and the following disclaimer in the documentation
-  *    and/or other materials provided with the distribution.
-  * 3. Neither the name of STMicroelectronics nor the names of other 
-  *    contributors to this software may be used to endorse or promote products 
-  *    derived from this software without specific written permission.
-  * 4. This software, including modifications and/or derivative works of this 
-  *    software, must execute solely and exclusively on microcontroller or
-  *    microprocessor devices manufactured by or for STMicroelectronics.
-  * 5. Redistribution and use of this software other than as permitted under 
-  *    this license is void and will automatically terminate your rights under 
-  *    this license. 
-  *
-  * THIS SOFTWARE IS PROVIDED BY STMICROELECTRONICS AND CONTRIBUTORS "AS IS" 
-  * AND ANY EXPRESS, IMPLIED OR STATUTORY WARRANTIES, INCLUDING, BUT NOT 
-  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
-  * PARTICULAR PURPOSE AND NON-INFRINGEMENT OF THIRD PARTY INTELLECTUAL PROPERTY
-  * RIGHTS ARE DISCLAIMED TO THE FULLEST EXTENT PERMITTED BY LAW. IN NO EVENT 
-  * SHALL STMICROELECTRONICS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
-  * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
-  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software component is licensed by ST under Ultimate Liberty license
+  * SLA0044, the "License"; You may not use this file except in compliance with
+  * the License. You may obtain a copy of the License at:
+  *                             www.st.com/SLA0044
   *
   ******************************************************************************
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f4xx_hal.h"
+#include "main.h"
 #include "lwip/opt.h"
 
-#include "lwip/lwip_timers.h"
+#include "lwip/timeouts.h"
+#include "netif/ethernet.h"
 #include "netif/etharp.h"
 #include "lwip/ethip6.h"
 #include "ethernetif.h"
 #include <string.h>
 #include "cmsis_os.h"
-
+#include "lwip/tcpip.h"
 /* Within 'USER CODE' section, code will be kept by default at each generation */
 /* USER CODE BEGIN 0 */
 
@@ -61,9 +37,10 @@
 /* Private define ------------------------------------------------------------*/
 /* The time to block waiting for input. */
 #define TIME_WAITING_FOR_INPUT ( portMAX_DELAY )
+/* USER CODE BEGIN OS_THREAD_STACK_SIZE_WITH_RTOS */
 /* Stack size of the interface thread */
 #define INTERFACE_THREAD_STACK_SIZE ( 350 )
-
+/* USER CODE END OS_THREAD_STACK_SIZE_WITH_RTOS */
 /* Network interface name */
 #define IFNAME0 's'
 #define IFNAME1 't'
@@ -99,8 +76,7 @@ __ALIGN_BEGIN uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __ALIGN_END; /* Ethe
 
 /* Semaphore to signal incoming packets */
 osSemaphoreId s_xSemaphore = NULL;
-
-/* Global Ethernet handle*/
+/* Global Ethernet handle */
 ETH_HandleTypeDef heth;
 
 /* USER CODE BEGIN 3 */
@@ -111,7 +87,7 @@ ETH_HandleTypeDef heth;
 
 void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 {
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(ethHandle->Instance==ETH)
   {
   /* USER CODE BEGIN ETH_MspInit 0 */
@@ -120,6 +96,10 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
     /* Enable Peripheral clock */
     __HAL_RCC_ETH_CLK_ENABLE();
   
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOG_CLK_ENABLE();
     /**ETH GPIO Configuration    
     PC1     ------> ETH_MDC
     PA1     ------> ETH_REF_CLK
@@ -263,7 +243,6 @@ static void low_level_init(struct netif *netif)
     /* Set netif link flag */  
     netif->flags |= NETIF_FLAG_LINK_UP;
   }
-
   /* Initialize Tx Descriptors list: Chain Mode */
   HAL_ETH_DMATxDescListInit(&heth, DMATxDscrTab, &Tx_Buff[0][0], ETH_TXBUFNB);
      
@@ -271,8 +250,9 @@ static void low_level_init(struct netif *netif)
   HAL_ETH_DMARxDescListInit(&heth, DMARxDscrTab, &Rx_Buff[0][0], ETH_RXBUFNB);
  
 #if LWIP_ARP || LWIP_ETHERNET 
+
   /* set MAC hardware address length */
-  netif->hwaddr_len = ETHARP_HWADDR_LEN;
+  netif->hwaddr_len = ETH_HWADDR_LEN;
   
   /* set MAC hardware address */
   netif->hwaddr[0] =  heth.Init.MACAddr[0];
@@ -295,12 +275,13 @@ static void low_level_init(struct netif *netif)
   
 /* create a binary semaphore used for informing ethernetif of frame reception */
   osSemaphoreDef(SEM);
-  s_xSemaphore = osSemaphoreCreate(osSemaphore(SEM) , 1 );
+  s_xSemaphore = osSemaphoreCreate(osSemaphore(SEM), 1);
 
 /* create the task that handles the ETH_MAC */
+/* USER CODE BEGIN OS_THREAD_DEF_CREATE_CMSIS_RTOS_V1 */
   osThreadDef(EthIf, ethernetif_input, osPriorityRealtime, 0, INTERFACE_THREAD_STACK_SIZE);
   osThreadCreate (osThread(EthIf), netif);
- 
+/* USER CODE END OS_THREAD_DEF_CREATE_CMSIS_RTOS_V1 */  
   /* Enable MAC and DMA transmission and reception */
   HAL_ETH_Start(&heth);
 
@@ -308,7 +289,7 @@ static void low_level_init(struct netif *netif)
     
 /* USER CODE END PHY_PRE_CONFIG */
   
- 
+
   /* Read Register Configuration */
   HAL_ETH_ReadPHYRegister(&heth, PHY_ISFR, &regvalue);
   regvalue |= (PHY_ISFR_INT4);
@@ -318,7 +299,6 @@ static void low_level_init(struct netif *netif)
   
   /* Read Register Configuration */
   HAL_ETH_ReadPHYRegister(&heth, PHY_ISFR , &regvalue);
- 
 
 /* USER CODE BEGIN PHY_POST_CONFIG */ 
     
@@ -434,7 +414,7 @@ error:
 static struct pbuf * low_level_input(struct netif *netif)
 {
   struct pbuf *p = NULL;
-  struct pbuf *q;
+  struct pbuf *q = NULL;
   uint16_t len = 0;
   uint8_t *buffer;
   __IO ETH_DMADescTypeDef *dmarxdesc;
@@ -446,6 +426,7 @@ static struct pbuf * low_level_input(struct netif *netif)
 
   /* get received frame */
   if (HAL_ETH_GetReceivedFrame_IT(&heth) != HAL_OK)
+  
     return NULL;
   
   /* Obtain the size of the packet and put it into the "len" variable. */
@@ -520,19 +501,18 @@ static struct pbuf * low_level_input(struct netif *netif)
  *
  * @param netif the lwip network interface structure for this ethernetif
  */
-void ethernetif_input( void const * argument ) 
- 
+void ethernetif_input(void const * argument)
 {
- 
   struct pbuf *p;
   struct netif *netif = (struct netif *) argument;
   
   for( ;; )
   {
-    if (osSemaphoreWait( s_xSemaphore, TIME_WAITING_FOR_INPUT)==osOK)
+    if (osSemaphoreWait(s_xSemaphore, TIME_WAITING_FOR_INPUT) == osOK)
     {
       do
       {   
+        LOCK_TCPIP_CORE();
         p = low_level_input( netif );
         if   (p != NULL)
         {
@@ -541,9 +521,9 @@ void ethernetif_input( void const * argument )
             pbuf_free(p);
           }
         }
+        UNLOCK_TCPIP_CORE();
       } while(p!=NULL);
     }
- 
   }
 }
 
@@ -554,7 +534,7 @@ void ethernetif_input( void const * argument )
  * @param netif the lwip network interface structure for this ethernetif
  * @return ERR_OK if ...
  */
-static err_t low_level_output_arp_off(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr)
+static err_t low_level_output_arp_off(struct netif *netif, struct pbuf *q, const ip4_addr_t *ipaddr)
 {  
   err_t errval;
   errval = ERR_OK;
@@ -644,13 +624,6 @@ u32_t sys_now(void)
 }
 
 /* USER CODE END 6 */
-
-/**
-  * @brief  This function sets the netif link status.
-  * @param  netif: the network interface
-  * @retval None
-  */
- 
 
 /* USER CODE BEGIN 7 */
 

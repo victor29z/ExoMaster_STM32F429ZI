@@ -42,13 +42,17 @@
  * $Id: upap.h,v 1.8 2002/12/04 23:03:33 paulus Exp $
  */
 
-#include "lwip/opt.h"
+#include "netif/ppp/ppp_opts.h"
 #if PPP_SUPPORT && PAP_SUPPORT  /* don't build if not configured for use in lwipopts.h */
 
 #ifndef UPAP_H
 #define UPAP_H
 
 #include "ppp.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * Packet header = Code, id, length.
@@ -88,10 +92,10 @@
 /*
  * Timeouts.
  */
-#if 0 /* moved to opt.h */
+#if 0 /* moved to ppp_opts.h */
 #define UPAP_DEFTIMEOUT	3	/* Timeout (seconds) for retransmitting req */
 #define UPAP_DEFREQTIME	30	/* Time to wait for auth-req from peer */
-#endif /* moved to opt.h */
+#endif /* moved to ppp_opts.h */
 
 /*
  * Each interface is described by upap structure.
@@ -118,6 +122,10 @@ void upap_authpeer(ppp_pcb *pcb);
 #endif /* PPP_SERVER */
 
 extern const struct protent pap_protent;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* UPAP_H */
 #endif /* PPP_SUPPORT && PAP_SUPPORT */

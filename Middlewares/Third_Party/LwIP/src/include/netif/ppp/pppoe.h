@@ -67,14 +67,18 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "lwip/opt.h"
+#include "netif/ppp/ppp_opts.h"
 #if PPP_SUPPORT && PPPOE_SUPPORT /* don't build if not configured for use in lwipopts.h */
 
 #ifndef PPP_OE_H
 #define PPP_OE_H
 
 #include "ppp.h"
-#include "netif/etharp.h"
+#include "lwip/etharp.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/bpstruct.h"
@@ -174,7 +178,10 @@ ppp_pcb *pppoe_create(struct netif *pppif,
 void pppoe_disc_input(struct netif *netif, struct pbuf *p);
 void pppoe_data_input(struct netif *netif, struct pbuf *p);
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* PPP_OE_H */
 
 #endif /* PPP_SUPPORT && PPPOE_SUPPORT */
-

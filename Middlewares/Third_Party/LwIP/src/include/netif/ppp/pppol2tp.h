@@ -31,13 +31,17 @@
  *
  */
 
-#include "lwip/opt.h"
+#include "netif/ppp/ppp_opts.h"
 #if PPP_SUPPORT && PPPOL2TP_SUPPORT /* don't build if not configured for use in lwipopts.h */
 
-#ifndef PPPOL2TP_H_
-#define PPPOL2TP_H_
+#ifndef PPPOL2TP_H
+#define PPPOL2TP_H
 
 #include "ppp.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Timeout */
 #define PPPOL2TP_CONTROL_TIMEOUT         (5*1000)  /* base for quick timeout calculation */
@@ -179,7 +183,7 @@ struct pppol2tp_pcb_s {
   u16_t tunnel_port;           /* Tunnel port */
   u16_t our_ns;                /* NS to peer */
   u16_t peer_nr;               /* NR from peer */
-  u16_t peer_ns;               /* NS from peer */
+  u16_t peer_ns;               /* Expected NS from peer */
   u16_t source_tunnel_id;      /* Tunnel ID assigned by peer */
   u16_t remote_tunnel_id;      /* Tunnel ID assigned to peer */
   u16_t source_session_id;     /* Session ID assigned by peer */
@@ -193,10 +197,13 @@ struct pppol2tp_pcb_s {
 
 /* Create a new L2TP session. */
 ppp_pcb *pppol2tp_create(struct netif *pppif,
-       struct netif *netif, ip_addr_t *ipaddr, u16_t port,
+       struct netif *netif, const ip_addr_t *ipaddr, u16_t port,
        const u8_t *secret, u8_t secret_len,
        ppp_link_status_cb_fn link_status_cb, void *ctx_cb);
 
-#endif /* PPPOL2TP_H_ */
-#endif /* PPP_SUPPORT && PPPOL2TP_SUPPORT */
+#ifdef __cplusplus
+}
+#endif
 
+#endif /* PPPOL2TP_H */
+#endif /* PPP_SUPPORT && PPPOL2TP_SUPPORT */

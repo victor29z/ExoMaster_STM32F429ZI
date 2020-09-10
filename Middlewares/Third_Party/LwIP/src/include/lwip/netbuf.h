@@ -1,3 +1,8 @@
+/**
+ * @file
+ * netbuf API (for netconn API)
+ */
+
 /*
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved.
@@ -51,14 +56,13 @@ extern "C" {
 /** This netbuf includes a checksum */
 #define NETBUF_FLAG_CHKSUM      0x02
 
+/** "Network buffer" - contains data and addressing info */
 struct netbuf {
   struct pbuf *p, *ptr;
   ip_addr_t addr;
   u16_t port;
 #if LWIP_NETBUF_RECVINFO || LWIP_CHECKSUM_ON_COPY
-#if LWIP_CHECKSUM_ON_COPY
   u8_t flags;
-#endif /* LWIP_CHECKSUM_ON_COPY */
   u16_t toport_chksum;
 #if LWIP_NETBUF_RECVINFO
   ip_addr_t toaddr;
@@ -110,4 +114,3 @@ void              netbuf_first    (struct netbuf *buf);
 #endif /* LWIP_NETCONN || LWIP_SOCKET */
 
 #endif /* LWIP_HDR_NETBUF_H */
-

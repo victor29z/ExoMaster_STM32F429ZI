@@ -1,3 +1,11 @@
+/**
+ * @file
+ * lwIP internal memory pools (do not use in application code)
+ * This file is deliberately included multiple times: once with empty
+ * definition of LWIP_MEMPOOL() to handle all includes and multiple times
+ * to build up various lists of mem pools.
+ */
+
 /*
  * SETUP: Make sure we define everything we will need.
  *
@@ -20,7 +28,7 @@
 #ifndef LWIP_PBUF_MEMPOOL
 /* This treats "pbuf pools" just like any other pool.
  * Allocates buffers for a pbuf struct AND a payload size */
-#define LWIP_PBUF_MEMPOOL(name, num, payload, desc) LWIP_MEMPOOL(name, num, (MEMP_ALIGN_SIZE(sizeof(struct pbuf)) + MEMP_ALIGN_SIZE(payload)), desc)
+#define LWIP_PBUF_MEMPOOL(name, num, payload, desc) LWIP_MEMPOOL(name, num, (LWIP_MEM_ALIGN_SIZE(sizeof(struct pbuf)) + LWIP_MEM_ALIGN_SIZE(payload)), desc)
 #endif /* LWIP_PBUF_MEMPOOL */
 
 
@@ -44,12 +52,16 @@ LWIP_MEMPOOL(TCP_PCB_LISTEN, MEMP_NUM_TCP_PCB_LISTEN,  sizeof(struct tcp_pcb_lis
 LWIP_MEMPOOL(TCP_SEG,        MEMP_NUM_TCP_SEG,         sizeof(struct tcp_seg),        "TCP_SEG")
 #endif /* LWIP_TCP */
 
+#if LWIP_ALTCP && LWIP_TCP
+LWIP_MEMPOOL(ALTCP_PCB,      MEMP_NUM_ALTCP_PCB,       sizeof(struct altcp_pcb),      "ALTCP_PCB")
+#endif /* LWIP_ALTCP && LWIP_TCP */
+
 #if LWIP_IPV4 && IP_REASSEMBLY
 LWIP_MEMPOOL(REASSDATA,      MEMP_NUM_REASSDATA,       sizeof(struct ip_reassdata),   "REASSDATA")
 #endif /* LWIP_IPV4 && IP_REASSEMBLY */
-#if (IP_FRAG && !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF) || (LWIP_IPV6 && LWIP_IPV6_FRAG)
+#if (IP_FRAG && !LWIP_NETIF_TX_SINGLE_PBUF) || (LWIP_IPV6 && LWIP_IPV6_FRAG)
 LWIP_MEMPOOL(FRAG_PBUF,      MEMP_NUM_FRAG_PBUF,       sizeof(struct pbuf_custom_ref),"FRAG_PBUF")
-#endif /* IP_FRAG && !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF */
+#endif /* IP_FRAG && !LWIP_NETIF_TX_SINGLE_PBUF || (LWIP_IPV6 && LWIP_IPV6_FRAG) */
 
 #if LWIP_NETCONN || LWIP_SOCKET
 LWIP_MEMPOOL(NETBUF,         MEMP_NUM_NETBUF,          sizeof(struct netbuf),         "NETBUF")
@@ -66,6 +78,9 @@ LWIP_MEMPOOL(DNS_API_MSG,    MEMP_NUM_DNS_API_MSG,     sizeof(struct dns_api_msg
 #if LWIP_SOCKET && !LWIP_TCPIP_CORE_LOCKING
 LWIP_MEMPOOL(SOCKET_SETGETSOCKOPT_DATA, MEMP_NUM_SOCKET_SETGETSOCKOPT_DATA, sizeof(struct lwip_setgetsockopt_data), "SOCKET_SETGETSOCKOPT_DATA")
 #endif
+#if LWIP_SOCKET && (LWIP_SOCKET_SELECT || LWIP_SOCKET_POLL)
+LWIP_MEMPOOL(SELECT_CB,      MEMP_NUM_SELECT_CB,       sizeof(struct lwip_select_cb), "SELECT_CB")
+#endif /* LWIP_SOCKET && (LWIP_SOCKET_SELECT || LWIP_SOCKET_POLL) */
 #if LWIP_NETIF_API
 LWIP_MEMPOOL(NETIFAPI_MSG,   MEMP_NUM_NETIFAPI_MSG,    sizeof(struct netifapi_msg),   "NETIFAPI_MSG")
 #endif
@@ -83,9 +98,9 @@ LWIP_MEMPOOL(ARP_QUEUE,      MEMP_NUM_ARP_QUEUE,       sizeof(struct etharp_q_en
 LWIP_MEMPOOL(IGMP_GROUP,     MEMP_NUM_IGMP_GROUP,      sizeof(struct igmp_group),     "IGMP_GROUP")
 #endif /* LWIP_IGMP */
 
-#if (!NO_SYS || (NO_SYS && !NO_SYS_NO_TIMERS)) /* LWIP_TIMERS */
+#if LWIP_TIMERS && !LWIP_TIMERS_CUSTOM
 LWIP_MEMPOOL(SYS_TIMEOUT,    MEMP_NUM_SYS_TIMEOUT,     sizeof(struct sys_timeo),      "SYS_TIMEOUT")
-#endif /* LWIP_TIMERS */
+#endif /* LWIP_TIMERS && !LWIP_TIMERS_CUSTOM */
 
 #if LWIP_DNS && LWIP_SOCKET
 LWIP_MEMPOOL(NETDB,          MEMP_NUM_NETDB,           NETDB_ELEM_SIZE,               "NETDB")
@@ -94,29 +109,16 @@ LWIP_MEMPOOL(NETDB,          MEMP_NUM_NETDB,           NETDB_ELEM_SIZE,         
 LWIP_MEMPOOL(LOCALHOSTLIST,  MEMP_NUM_LOCALHOSTLIST,   LOCALHOSTLIST_ELEM_SIZE,       "LOCALHOSTLIST")
 #endif /* LWIP_DNS && DNS_LOCAL_HOSTLIST && DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
 
-#if PPP_SUPPORT
-LWIP_MEMPOOL(PPP_PCB,       MEMP_NUM_PPP_PCB,              sizeof(ppp_pcb),             "PPP_PCB")
-#if PPPOS_SUPPORT
-LWIP_MEMPOOL(PPPOS_PCB,     MEMP_NUM_PPPOS_INTERFACES,     sizeof(pppos_pcb),           "PPPOS_PCB")
-#endif /* PPPOS_SUPPORT */
-#if PPPOE_SUPPORT
-LWIP_MEMPOOL(PPPOE_IF,      MEMP_NUM_PPPOE_INTERFACES,     sizeof(struct pppoe_softc),  "PPPOE_IF")
-#endif /* PPPOE_SUPPORT */
-#if PPPOL2TP_SUPPORT
-LWIP_MEMPOOL(PPPOL2TP_PCB,  MEMP_NUM_PPPOL2TP_INTERFACES,  sizeof(pppol2tp_pcb),        "PPPOL2TP_PCB")
-#endif /* PPPOL2TP_SUPPORT */
-#endif /* PPP_SUPPORT */
-
 #if LWIP_IPV6 && LWIP_ND6_QUEUEING
-LWIP_MEMPOOL(ND6_QUEUE,      MEMP_NUM_ND6_QUEUE,       sizeof(struct nd6_q_entry), "ND6_QUEUE")
+LWIP_MEMPOOL(ND6_QUEUE,      MEMP_NUM_ND6_QUEUE,       sizeof(struct nd6_q_entry),    "ND6_QUEUE")
 #endif /* LWIP_IPV6 && LWIP_ND6_QUEUEING */
 
 #if LWIP_IPV6 && LWIP_IPV6_REASS
-LWIP_MEMPOOL(IP6_REASSDATA,      MEMP_NUM_REASSDATA,       sizeof(struct ip6_reassdata),   "IP6_REASSDATA")
+LWIP_MEMPOOL(IP6_REASSDATA,  MEMP_NUM_REASSDATA,       sizeof(struct ip6_reassdata),  "IP6_REASSDATA")
 #endif /* LWIP_IPV6 && LWIP_IPV6_REASS */
 
 #if LWIP_IPV6 && LWIP_IPV6_MLD
-LWIP_MEMPOOL(MLD6_GROUP,     MEMP_NUM_MLD6_GROUP,      sizeof(struct mld_group),     "MLD6_GROUP")
+LWIP_MEMPOOL(MLD6_GROUP,     MEMP_NUM_MLD6_GROUP,      sizeof(struct mld_group),      "MLD6_GROUP")
 #endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
 
 
@@ -128,7 +130,7 @@ LWIP_MEMPOOL(MLD6_GROUP,     MEMP_NUM_MLD6_GROUP,      sizeof(struct mld_group),
  *     This allocates enough space for the pbuf struct and a payload.
  *     (Example: pbuf_payload_size=0 allocates only size for the struct)
  */
-LWIP_PBUF_MEMPOOL(PBUF,      MEMP_NUM_PBUF,            0,                             "PBUF_REF/ROM")
+LWIP_MEMPOOL(PBUF,           MEMP_NUM_PBUF,            sizeof(struct pbuf),           "PBUF_REF/ROM")
 LWIP_PBUF_MEMPOOL(PBUF_POOL, PBUF_POOL_SIZE,           PBUF_POOL_BUFSIZE,             "PBUF_POOL")
 
 
